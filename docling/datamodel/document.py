@@ -157,6 +157,8 @@ class InputDocument(BaseModel):
                     self.page_count = self._backend.page_count()
                     if not self.page_count <= self.limits.max_num_pages:
                         self.valid = False
+                    elif self.page_count < self.limits.page_range[0]:
+                        self.valid = False
 
         except (FileNotFoundError, OSError) as e:
             self.valid = False
@@ -227,13 +229,18 @@ class _DummyBackend(AbstractDocumentBackend):
 class _DocumentConversionInput(BaseModel):
 
     path_or_stream_iterator: Iterable[Union[Path, str, DocumentStream]]
+    headers: Optional[Dict[str, str]] = None
     limits: Optional[DocumentLimits] = DocumentLimits()
 
     def docs(
         self, format_options: Dict[InputFormat, "FormatOption"]
     ) -> Iterable[InputDocument]:
         for item in self.path_or_stream_iterator:
-            obj = resolve_source_to_stream(item) if isinstance(item, str) else item
+            obj = (
+                resolve_source_to_stream(item, self.headers)
+                if isinstance(item, str)
+                else item
+            )
             format = self._guess_format(obj)
             backend: Type[AbstractDocumentBackend]
             if format not in format_options.keys():
@@ -345,6 +352,10 @@ class _DocumentConversionInput(BaseModel):
             mime = FormatToMimeType[InputFormat.HTML][0]
         elif ext in FormatToExtensions[InputFormat.MD]:
             mime = FormatToMimeType[InputFormat.MD][0]
+        elif ext in FormatToExtensions[InputFormat.JSON_DOCLING]:
+            mime = FormatToMimeType[InputFormat.JSON_DOCLING][0]
+        elif ext in FormatToExtensions[InputFormat.PDF]:
+            mime = FormatToMimeType[InputFormat.PDF][0]
         return mime
 
     @staticmethod
